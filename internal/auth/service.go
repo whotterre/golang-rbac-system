@@ -93,22 +93,22 @@ func (s *authService) LoginWithPassword(ctx context.Context, email, password str
 
 	err = bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password))
 	if err != nil {
-		newAttempts, err := s.Repository.queries.IncrementFailedAttempts(ctx, existingUser.ID)
-		if err != nil {
-			log.Println("failed to increment failed attempts:", err)
-			return nil, err
+		newAttempts, incrementErr := s.Repository.queries.IncrementFailedAttempts(ctx, existingUser.ID)
+		if incrementErr != nil {
+			log.Println("failed to increment failed attempts:", incrementErr)
+			return nil, incrementErr
 		}
 
 		if newAttempts >= 5 {
 			lockOutWindowEnd := time.Now().Add(15 * time.Minute)
-			err := s.Repository.queries.LockUser(ctx, usersdb.LockUserParams{
+			lockoutErr := s.Repository.queries.LockUser(ctx, usersdb.LockUserParams{
 				ID: existingUser.ID,
 				LockedUntil: pgtype.Timestamptz{
 					Time:  lockOutWindowEnd,
 					Valid: true,
 				},
 			})
-			if err != nil {
+			if lockoutErr != nil {
 				log.Println("Failed to lock user after 5 attempts", err)
 				return nil, err
 			}

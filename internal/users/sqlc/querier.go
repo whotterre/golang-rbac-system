@@ -13,9 +13,13 @@ import (
 type Querier interface {
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	GetLockoutStatus(ctx context.Context, id uuid.UUID) (GetLockoutStatusRow, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	IncrementFailedAttempts(ctx context.Context, id uuid.UUID) (int32, error)
+	LockUser(ctx context.Context, arg LockUserParams) error
+	ResetLockout(ctx context.Context, id uuid.UUID) error
 	RevokeAllRefreshTokensForUser(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error

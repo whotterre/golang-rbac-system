@@ -1,4 +1,3 @@
-// Command rbac-system is the entrypoint for the RBAC service.
 package main
 
 import (

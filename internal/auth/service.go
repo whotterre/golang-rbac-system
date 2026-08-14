@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
 	usersdb "github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/users/sqlc"
@@ -19,6 +20,7 @@ var (
 	ErrRefreshTokenInvalid         = errors.New("refresh token is invalid")
 	ErrRefreshTokenExpired         = errors.New("refresh token has expired")
 	ErrRefreshTokenReuse           = errors.New("refresh token reuse detected — all sessions have been terminated")
+	ErrLockedOut                   = errors.New("too many failed attempts while trying to sign in. Try again later")
 )
 
 type TokenPair struct {
@@ -83,9 +85,41 @@ func (s *authService) LoginWithPassword(ctx context.Context, email, password str
 		return nil, err
 	}
 
+	// Check if user is locked
+	if existingUser.LockedUntil.Valid &&
+		time.Now().Before(existingUser.LockedUntil.Time) {
+		return nil, ErrLockedOut
+	}
+
 	err = bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password))
 	if err != nil {
+		newAttempts, err := s.Repository.queries.IncrementFailedAttempts(ctx, existingUser.ID)
+		if err != nil {
+			log.Println("failed to increment failed attempts:", err)
+			return nil, err
+		}
+
+		if newAttempts >= 5 {
+			lockOutWindowEnd := time.Now().Add(15 * time.Minute)
+			err := s.Repository.queries.LockUser(ctx, usersdb.LockUserParams{
+				ID: existingUser.ID,
+				LockedUntil: pgtype.Timestamptz{
+					Time:  lockOutWindowEnd,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				log.Println("Failed to lock user after 5 attempts", err)
+				return nil, err
+			}
+		}
+
 		return nil, ErrPasswordMismatchDuringLogin
+	}
+
+	err = s.Repository.queries.ResetLockout(ctx, existingUser.ID)
+	if err != nil {
+		log.Println("failed to reset lockout:", err)
 	}
 
 	accessToken, refreshToken, refreshHash, err := s.jwtUtil.IssueTokenPair(

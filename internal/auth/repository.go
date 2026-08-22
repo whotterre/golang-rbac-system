@@ -60,3 +60,15 @@ func (r *Repository) RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 func (r *Repository) RevokeAllRefreshTokensForUser(ctx context.Context, userID uuid.UUID) error {
 	return r.queries.RevokeAllRefreshTokensForUser(ctx, userID)
 }
+
+func (r *Repository) IncrementFailedAttempts(ctx context.Context, id uuid.UUID) (int32, error) {
+	return r.queries.IncrementFailedAttempts(ctx, id)
+}
+
+func (r *Repository) LockUser(ctx context.Context, arg usersdb.LockUserParams) error {
+	return r.queries.LockUser(ctx, arg)
+}
+
+func (r *Repository) ResetLockout(ctx context.Context, id uuid.UUID) error {
+	return r.queries.ResetLockout(ctx, id)
+}
